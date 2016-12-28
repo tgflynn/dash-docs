@@ -1,0 +1,65 @@
+
+A masternode entry is added to the list when a valid new (not previously
+seen by the node) broadcast is received.
+
+Broadcasts are sent either by CActiveMasternode when a local wallet MN
+starts up or by a manual command such as start-alias.
+
+After receiving a new broadcast the MN state is set to ENABLED and
+sigTime is set to the current time.
+
+Pings are sent periodically by CActiveMasternode on any running
+masternode.
+
+If no ping is received within time period MASTERNODE_MIN_MNP_SECONDS the MN state is set to
+INACTIVE.
+
+If no ping is received within time period
+MASTERNODE_MNP_EXPIRE_SECONDS (MASTERNODE_MNP_EXPIRE_SECONDS > MASTERNODE_MIN_MNP_SECONDS) 
+the MN state is set to EXPIRED.
+
+Masternodes must be in the ENABLED state and must have a sufficiently
+old sigTime to be considered for payment.
+
+Broadcast and ping messages are validated independently when received.
+
+Pings contained within broadcasts are ignored (will be removed by
+future protocol update).
+
+Valid new broadcasts for existing masternodes update sigTime and the
+masternode information (pubkey, address, etc.).
+
+Valid pings update the last ping time.
+
+CMasternode::Check() implements the following state transition logic:
+
+state ANY
+  out of date protocol detected => NULL (remove from list)
+
+state ANY
+  collateral spent => NULL (remove from list)
+
+state NULL (MN not in list)
+  new broadcast received => ENABLED
+
+state ENABLED
+  POS checks failed => POSE_BAN
+  ping timeout (MASTERNODE_MIN_MNP_SECONDS) => INACTIVE
+  watchdog timeout => WATCHDOG_EXPIRED
+
+state WATCHDOG_EXPIRED
+  watchdog received => ENABLED then recheck conditions
+
+state INACTIVE
+  ping timeout 2 (MASTERNODE_MNP_EXPIRE_SECONDS) => EXPIRED
+  ping received => ENABLED then recheck conditions
+
+state EXPIRED
+  ping received => ENABLED, sigTime = current time, recheck conditions
+
+state POSE_BAN
+  POS checks pass => ENABLED then recheck conditions
+
+Check() is called periodically and on new masternodes before they are
+added to the list as well as on existing masternodes when they receive
+new broadcasts.
